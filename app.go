@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 )
 
 func initialise(filename string) map[string]string {
@@ -37,8 +38,21 @@ func initialise(filename string) map[string]string {
 	return qna
 }
 
-func main() {
-	initQuiz := initialise(os.Args[1])
+func timer() {
+	timer := time.NewTimer(3 * time.Second)
+	<-timer.C
+	fmt.Println("Time has run out")
+
+}
+
+func Quiz() {
+	file := "./qa.csv"
+
+	if len(os.Args[1]) > 0 {
+		file = os.Args[1]
+	}
+
+	initQuiz := initialise(file)
 	questions := make([]string, 0, len(initQuiz))
 	score := 0
 
@@ -46,9 +60,13 @@ func main() {
 		questions = append(questions, k)
 	}
 
+	fmt.Println("Press enter to start the quiz.")
+	s := bufio.NewScanner(os.Stdin)
+	s.Scan()
+
 	for i := 0; i < len(questions); i++ {
 		question := questions[i]
-		answer := initQuiz[question]
+		answer := strings.ToLower(initQuiz[question])
 		fmt.Printf("Question %d/%d", i+1, len(questions))
 		fmt.Println()
 		fmt.Println(question)
@@ -74,4 +92,9 @@ func main() {
 
 	fmt.Printf("Quiz completed! \n You scored %d out of a possible %d \n", score, len(questions))
 
+}
+
+func main() {
+	go Quiz()
+	timer()
 }
