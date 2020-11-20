@@ -43,19 +43,11 @@ func initialise(filename string) map[string]string {
 	return qna
 }
 
-func printScore(score int, totalQuestions int) {
-	fmt.Printf("Quiz completed! \n You scored %d out of a possible %d \n", score, totalQuestions)
+func printScore(score int, totalQuestions int) string {
+	return fmt.Sprintf("Quiz completed! \n You scored %d out of a possible %d \n", score, totalQuestions)
 }
 
-func timer(ch chan int, wg *sync.WaitGroup) {
-	timer := time.NewTimer(time.Second * 3)
-	<-timer.C
-	ch <- -1
-	close(ch)
-	wg.Done()
-}
-
-func quiz(initQuiz map[string]string, ch chan int, wg *sync.WaitGroup) {
+func quiz(initQuiz map[string]string, timer *time.Timer) {
 
 	questions := make([]string, 0, len(initQuiz))
 
@@ -67,40 +59,38 @@ func quiz(initQuiz map[string]string, ch chan int, wg *sync.WaitGroup) {
 		questions = append(questions, k)
 	}
 
-	fmt.Println("Press enter to start the quiz.")
-	s := bufio.NewScanner(os.Stdin)
-	s.Scan()
-
 	for i := 0; i < totalQuestions; i++ {
-		question := questions[i]
-		answer := strings.ToLower(initQuiz[question])
-		fmt.Printf("Question %d/%d", i+1, totalQuestions)
-		fmt.Println()
-		fmt.Println(question)
+		select {
+		case <-timer.C:
+			fmt.Printf("You ran out of time. You scored %d out of %d \n", score, totalQuestions)
+		default:
+			question := questions[i]
+			answer := strings.ToLower(initQuiz[question])
+			fmt.Printf("Question %d/%d", i+1, totalQuestions)
+			fmt.Println()
+			fmt.Println(question)
 
-		scanner := bufio.NewScanner(os.Stdin)
-		scanner.Scan()
-		guess := scanner.Text()
+			scanner := bufio.NewScanner(os.Stdin)
+			scanner.Scan()
+			guess := scanner.Text()
 
-		if guess == answer {
-			score++
+			if guess == answer {
+				score++
 
-			fmt.Println(strings.Repeat("-", 15), "\n ")
-			fmt.Println("Correct! \n ")
-			fmt.Println(strings.Repeat("-", 15), "\n ")
-		} else {
-			fmt.Println(strings.Repeat("-", 15), "\n ")
-			fmt.Printf("Incorrect, the correct answer was %s \n", answer)
-			fmt.Println(strings.Repeat("-", 15), "\n ")
+				fmt.Println(strings.Repeat("-", 15), "\n ")
+				fmt.Println("Correct! \n ")
+				fmt.Println(strings.Repeat("-", 15), "\n ")
+			} else {
+				fmt.Println(strings.Repeat("-", 15), "\n ")
+				fmt.Printf("Incorrect, the correct answer was %s \n", answer)
+				fmt.Println(strings.Repeat("-", 15), "\n ")
 
+			}
 		}
 
 	}
 
 	printScore(score, totalQuestions)
-	ch <- 0
-	close(ch)
-	wg.Done()
 
 }
 
@@ -111,21 +101,7 @@ func main() {
 		file = os.Args[1]
 	}
 	initQuiz := initialise(file)
+	timer := time.NewTimer(time.Duration(3) * time.Second)
 
-	timerChan := make(chan int)
-	quizChan := make(chan int)
-	var wg sync.WaitGroup
-
-	wg.Add(2)
-	go timer(timerChan, &wg)
-	go quiz(initQuiz, quizChan, &wg)
-
-	select {
-	case status := <-timerChan:
-		fmt.Println(status)
-	case status := <-quizChan:
-		fmt.Println(status)
-
-		wg.Wait()
-	}
+	quiz(initQuiz, timer)
 }
