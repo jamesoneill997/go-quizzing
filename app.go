@@ -60,20 +60,26 @@ func quiz(initQuiz map[string]string, timer *time.Timer) {
 	}
 
 	for i := 0; i < totalQuestions; i++ {
-		select {
-		case <-timer.C:
-			fmt.Printf("You ran out of time. You scored %d out of %d \n", score, totalQuestions)
-		default:
-			question := questions[i]
-			answer := strings.ToLower(initQuiz[question])
-			fmt.Printf("Question %d/%d", i+1, totalQuestions)
-			fmt.Println()
-			fmt.Println(question)
+		question := questions[i]
+		answer := strings.ToLower(initQuiz[question])
+		fmt.Printf("Question %d/%d", i+1, totalQuestions)
+		fmt.Println()
+		fmt.Println(question)
 
+		answerCh := make(chan string, 1)
+
+		go func() {
 			scanner := bufio.NewScanner(os.Stdin)
 			scanner.Scan()
 			guess := scanner.Text()
+			answerCh <- guess
+		}()
 
+		select {
+
+		case <-timer.C:
+			fmt.Printf("You ran out of time. You scored %d out of %d \n", score, totalQuestions)
+		case guess := <-answerCh:
 			if guess == answer {
 				score++
 
