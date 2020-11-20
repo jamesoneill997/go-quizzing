@@ -8,7 +8,12 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
+)
+
+var (
+	mutex sync.Mutex
 )
 
 func initialise(filename string) map[string]string {
@@ -38,22 +43,24 @@ func initialise(filename string) map[string]string {
 	return qna
 }
 
-func timer() {
-	timer := time.NewTimer(3 * time.Second)
-	<-timer.C
-	fmt.Println("Time has run out")
-
+func printScore(score int, totalQuestions int) {
+	fmt.Printf("Quiz completed! \n You scored %d out of a possible %d \n", score, totalQuestions)
 }
 
-func Quiz() {
-	file := "./qa.csv"
+func timer(ch chan int, wg *sync.WaitGroup) {
+	timer := time.NewTimer(time.Second * 3)
+	<-timer.C
+	ch <- -1
+	close(ch)
+	wg.Done()
+}
 
-	if len(os.Args[1]) > 0 {
-		file = os.Args[1]
-	}
+func quiz(initQuiz map[string]string, ch chan int, wg *sync.WaitGroup) {
 
-	initQuiz := initialise(file)
 	questions := make([]string, 0, len(initQuiz))
+
+	totalQuestions := len(initQuiz)
+
 	score := 0
 
 	for k := range initQuiz {
@@ -64,10 +71,10 @@ func Quiz() {
 	s := bufio.NewScanner(os.Stdin)
 	s.Scan()
 
-	for i := 0; i < len(questions); i++ {
+	for i := 0; i < totalQuestions; i++ {
 		question := questions[i]
 		answer := strings.ToLower(initQuiz[question])
-		fmt.Printf("Question %d/%d", i+1, len(questions))
+		fmt.Printf("Question %d/%d", i+1, totalQuestions)
 		fmt.Println()
 		fmt.Println(question)
 
@@ -79,7 +86,7 @@ func Quiz() {
 			score++
 
 			fmt.Println(strings.Repeat("-", 15), "\n ")
-			fmt.Println("Correct! \n")
+			fmt.Println("Correct! \n ")
 			fmt.Println(strings.Repeat("-", 15), "\n ")
 		} else {
 			fmt.Println(strings.Repeat("-", 15), "\n ")
@@ -90,11 +97,35 @@ func Quiz() {
 
 	}
 
-	fmt.Printf("Quiz completed! \n You scored %d out of a possible %d \n", score, len(questions))
+	printScore(score, totalQuestions)
+	ch <- 0
+	close(ch)
+	wg.Done()
 
 }
 
 func main() {
-	go Quiz()
-	timer()
+	//handle file input
+	file := "./qa.csv"
+	if len(os.Args) > 1 {
+		file = os.Args[1]
+	}
+	initQuiz := initialise(file)
+
+	timerChan := make(chan int)
+	quizChan := make(chan int)
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	go timer(timerChan, &wg)
+	go quiz(initQuiz, quizChan, &wg)
+
+	select {
+	case status := <-timerChan:
+		fmt.Println(status)
+	case status := <-quizChan:
+		fmt.Println(status)
+
+		wg.Wait()
+	}
 }
